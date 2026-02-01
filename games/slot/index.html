@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cyber Slot - Neon Matrix</title>
+    <style>
+        :root {
+            --neon-pink: #ff00ff;
+            --neon-blue: #00f2ff;
+            --dark-bg: #0d0d0d;
+            --glass: rgba(255, 255, 255, 0.1);
+        }
+
+        body {
+            background-color: var(--dark-bg);
+            color: white;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        /* 演出用シェイク */
+        .shake {
+            animation: shake 0.3s cubic-bezier(.36,.07,.19,.97) both;
+        }
+
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-1px, 0, 0); }
+            20%, 80% { transform: translate3d(2px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+            40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+
+        #game-container {
+            text-align: center;
+            padding: 20px;
+            border: 2px solid var(--neon-blue);
+            box-shadow: 0 0 20px var(--neon-blue), inset 0 0 10px var(--neon-blue);
+            border-radius: 20px;
+            background: black;
+            position: relative;
+        }
+
+        h1 {
+            color: var(--neon-pink);
+            text-shadow: 0 0 10px var(--neon-pink);
+            margin-bottom: 20px;
+            font-size: 2rem;
+            letter-spacing: 5px;
+        }
+
+        .stats {
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+            color: var(--neon-blue);
+            text-shadow: 0 0 5px var(--neon-blue);
+        }
+
+        .slot-machine {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+            perspective: 1000px;
+        }
+
+        .reel {
+            width: 80px;
+            height: 120px;
+            background: var(--glass);
+            border: 2px solid var(--neon-pink);
+            border-radius: 10px;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3rem;
+            position: relative;
+            box-shadow: 0 0 15px var(--neon-pink);
+        }
+
+        .reel-content {
+            display: flex;
+            flex-direction: column;
+            position: absolute;
+            top: 0;
+            transition: transform 0.1s linear;
+        }
+
+        .spin-btn {
+            background: transparent;
+            color: var(--neon-blue);
+            border: 3px solid var(--neon-blue);
+            padding: 15px 50px;
+            font-size: 1.8rem;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 50px;
+            transition: 0.2s;
+            box-shadow: 0 0 15px var(--neon-blue);
+            width: 80%;
+            max-width: 300px;
+        }
+
+        .spin-btn:active {
+            transform: scale(0.95);
+            box-shadow: 0 0 5px var(--neon-blue);
+        }
+
+        .spin-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            border-color: #555;
+            color: #555;
+            box-shadow: none;
+        }
+
+        /* WIN 演出 */
+        #win-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            pointer-events: none;
+        }
+
+        .win-text {
+            font-size: 8rem;
+            color: var(--neon-pink);
+            text-shadow: 0 0 30px var(--neon-pink), 0 0 60px white;
+            animation: pulse 0.5s infinite alternate;
+        }
+
+        @keyframes pulse {
+            from { transform: scale(1); }
+            to { transform: scale(1.2); }
+        }
+
+        canvas#confetti {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 99;
+        }
+    </style>
+</head>
+<body>
+
+<canvas id="confetti"></canvas>
+
+<div id="win-overlay">
+    <div class="win-text">WIN!</div>
+</div>
+
+<div id="game-container">
+    <h1>CYBER SLOT</h1>
+    <div class="stats">COINS: <span id="coin-count">1000</span></div>
+    
+    <div class="slot-machine">
+        <div class="reel"><div id="reel1" class="reel-content">💎</div></div>
+        <div class="reel"><div id="reel2" class="reel-content">💎</div></div>
+        <div class="reel"><div id="reel3" class="reel-content">💎</div></div>
+    </div>
+
+    <button class="spin-btn" id="spin-button" onclick="spin()">SPIN</button>
+</div>
+
+<script>
+    const symbols = ['💎', '7️⃣', '💰', '🍒', '💀'];
+    const weights = [0.1, 0.05, 0.15, 0.4, 0.3]; // 当たりの重み
+    let coins = 1000;
+    let isSpinning = false;
+
+    const coinDisplay = document.getElementById('coin-count');
+    const reels = [document.getElementById('reel1'), document.getElementById('reel2'), document.getElementById('reel3')];
+    const btn = document.getElementById('spin-button');
+    const container = document.getElementById('game-container');
+    const overlay = document.getElementById('win-overlay');
+    const canvas = document.getElementById('confetti');
+    const ctx = canvas.getContext('2d');
+
+    // Canvasサイズ設定
+    function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // 紙吹雪パーティクル
+    let particles = [];
+    function createConfetti() {
+        particles = [];
+        for (let i = 0; i < 150; i++) {
+            particles.push({
+                x: Math.random() * canvas.width,
+                y: Math.random() * canvas.height - canvas.height,
+                size: Math.random() * 10 + 5,
+                color: `hsl(${Math.random() * 360}, 100%, 50%)`,
+                speed: Math.random() * 5 + 2,
+                angle: Math.random() * 6
+            });
+        }
+    }
+
+    function drawConfetti() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        particles.forEach(p => {
+            ctx.fillStyle = p.color;
+            ctx.fillRect(p.x, p.y, p.size, p.size);
+            p.y += p.speed;
+            p.x += Math.sin(p.angle) * 2;
+            if (p.y > canvas.height) p.y = -20;
+        });
+        if (overlay.style.display === 'flex') requestAnimationFrame(drawConfetti);
+    }
+
+    function getRandomSymbol() {
+        return symbols[Math.floor(Math.random() * symbols.length)];
+    }
+
+    async function spin() {
+        if (isSpinning || coins < 100) return;
+
+        // 初期化
+        isSpinning = true;
+        btn.disabled = true;
+        coins -= 100;
+        coinDisplay.innerText = coins;
+        overlay.style.display = 'none';
+
+        // 回転演出
+        const results = [];
+        const spinDuration = 2000;
+        
+        const startTime = Date.now();
+        const spinInterval = setInterval(() => {
+            reels.forEach(r => {
+                r.innerText = getRandomSymbol();
+            });
+            // 高速回転感を出すためのブラー効果（簡易）
+            reels.forEach(r => r.style.filter = 'blur(4px)');
+        }, 50);
+
+        setTimeout(() => {
+            clearInterval(spinInterval);
+            reels.forEach(r => r.style.filter = 'none');
+            
+            // 結果判定
+            const r1 = getRandomSymbol();
+            const r2 = getRandomSymbol();
+            const r3 = getRandomSymbol();
+            
+            reels[0].innerText = r1;
+            reels[1].innerText = r2;
+            reels[2].innerText = r3;
+
+            checkWin(r1, r2, r3);
+            isSpinning = false;
+            btn.disabled = false;
+        }, spinDuration);
+    }
+
+    function checkWin(r1, r2, r3) {
+        if (r1 === r2 && r2 === r3) {
+            let winAmount = 0;
+            if (r1 === '7️⃣') winAmount = 5000;
+            else if (r1 === '💎') winAmount = 2000;
+            else if (r1 === '💰') winAmount = 1000;
+            else if (r1 === '🍒') winAmount = 500;
+            else if (r1 === '💀') winAmount = 10; // ハズレに近い当たり
+
+            coins += winAmount;
+            coinDisplay.innerText = coins;
+            
+            // WIN演出
+            overlay.style.display = 'flex';
+            createConfetti();
+            drawConfetti();
+            setTimeout(() => { overlay.style.display = 'none'; }, 3000);
+        } else {
+            // ハズレ演出
+            container.classList.add('shake');
+            setTimeout(() => container.classList.remove('shake'), 300);
+        }
+    }
+</script>
+
+</body>
+</html>
