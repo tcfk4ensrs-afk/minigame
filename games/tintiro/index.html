@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>3D 粋・極チンチロ 漆黒版</title>
+    <title>3D 粋・極チンチロ 漆黒版 改</title>
     <style>
         body { margin: 0; background: #050505; overflow: hidden; font-family: "Yu Mincho", serif; }
         #ui { position: absolute; bottom: 40px; width: 100%; text-align: center; z-index: 100; }
@@ -51,13 +51,14 @@ function createDiceTexture(num) {
 }
 
 function init() {
-    // 物理世界：反発を最大化、摩擦を極小化
     world = new CANNON.World();
-    world.gravity.set(0, -60, 0);
+    world.gravity.set(0, -50, 0);
+    world.allowSleep = true; // 眠り設定を有効化（静止しやすくする）
+
     const mat = new CANNON.Material();
     world.addContactMaterial(new CANNON.ContactMaterial(mat, mat, { 
-        restitution: 0.95, // 超反発
-        friction: 0.001     // ほぼゼロの摩擦
+        restitution: 0.7, // 反発を適正値に調整
+        friction: 0.1     // 摩擦を少し戻して静止を助ける
     }));
 
     scene = new THREE.Scene();
@@ -74,12 +75,11 @@ function init() {
     light.position.set(5, 20, 10); light.castShadow = true;
     scene.add(light);
 
-    // --- 物理設定：見えない器 ---
     const floorSize = 2.2; 
     const limitRadius = 4.8;
-    const tilt = 0.9; 
+    const tilt = 1.0; 
     
-    // 平らな底面（物理）
+    // 平らな底面
     const floor = new CANNON.Body({ mass: 0, material: mat });
     floor.addShape(new CANNON.Plane());
     floor.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI/2);
@@ -93,28 +93,24 @@ function init() {
         b.quaternion = qY.mult(qX); world.addBody(b);
     };
 
-    // 坂（滑り台）
     createWall(0, floorSize, 0, -Math.PI/2 + tilt);
     createWall(0, -floorSize, Math.PI, -Math.PI/2 + tilt);
     createWall(floorSize, 0, -Math.PI/2, -Math.PI/2 + tilt);
     createWall(-floorSize, 0, Math.PI/2, -Math.PI/2 + tilt);
 
-    // 垂直の見えない壁（場外防止）
     createWall(0, limitRadius, 0, -Math.PI);
     createWall(0, -limitRadius, 0, 0);
     createWall(limitRadius, 0, -Math.PI/2, 0);
     createWall(-limitRadius, 0, Math.PI/2, 0);
 
-    // --- 見た目：背景と同色の円（土台っぽく見せる） ---
     const circleGeo = new THREE.CircleGeometry(limitRadius, 64);
     const circleMat = new THREE.MeshPhongMaterial({ color: 0x080808, side: THREE.DoubleSide });
     const circleMesh = new THREE.Mesh(circleGeo, circleMat);
     circleMesh.rotation.x = -Math.PI/2;
-    circleMesh.position.y = -0.05; // 物理地面よりわずかに下に配置
+    circleMesh.position.y = -0.05;
     circleMesh.receiveShadow = true;
     scene.add(circleMesh);
 
-    // サイコロ
     const diceSize = 0.85;
     const diceMats = [createDiceTexture(5), createDiceTexture(2), createDiceTexture(6), createDiceTexture(1), createDiceTexture(3), createDiceTexture(4)];
     for (let i = 0; i < 3; i++) {
@@ -123,10 +119,12 @@ function init() {
         
         const body = new CANNON.Body({ mass: 1, material: mat });
         body.addShape(new CANNON.Box(new CANNON.Vec3(diceSize/2, diceSize/2, diceSize/2)));
-        body.position.set(0, 10, 0); world.addBody(body); diceBodies.push(body);
+        body.position.set(0, 10, 0);
+        body.sleepTimeLimit = 0.5; // 0.5秒間静止気味ならスリープ
+        body.sleepSpeedLimit = 0.1; 
+        world.addBody(body); diceBodies.push(body);
     }
     
-    // 金粉
     const pGeo = new THREE.BufferGeometry();
     const pPos = new Float32Array(600);
     for(let i=0; i<600; i++) pPos[i] = (Math.random()-0.5)*30;
@@ -145,16 +143,19 @@ function roll() {
     document.getElementById('rollBtn').disabled = true;
 
     diceBodies.forEach((body, i) => {
+        body.wakeUp(); // スリープを解除
         body.position.set((Math.random()-0.5), 6+i, (Math.random()-0.5));
-        body.velocity.set((Math.random()-0.5)*35, -25, (Math.random()-0.5)*35);
-        body.angularVelocity.set(Math.random()*60, Math.random()*60, Math.random()*60);
+        body.velocity.set((Math.random()-0.5)*30, -20, (Math.random()-0.5)*30);
+        body.angularVelocity.set(Math.random()*50, Math.random()*50, Math.random()*50);
     });
-    setTimeout(() => { checkSettled = true; }, 1500);
+    // 確実に動き出してから監視開始
+    setTimeout(() => { checkSettled = true; }, 1000);
 }
 
 function checkAllSettled() {
     if (!checkSettled) return;
-    const stopped = diceBodies.every(b => b.velocity.length() < 0.02 && b.angularVelocity.length() < 0.02);
+    // スリープ状態、または極低速なら停止とみなす
+    const stopped = diceBodies.every(b => b.sleepState === CANNON.Body.SLEEPING || (b.velocity.length() < 0.08 && b.angularVelocity.length() < 0.08));
     if (stopped) { checkSettled = false; judge(); }
 }
 
@@ -200,10 +201,9 @@ function animate() {
     diceArray.forEach((mesh, i) => {
         mesh.position.copy(diceBodies[i].position);
         mesh.quaternion.copy(diceBodies[i].quaternion);
-        // 中心への強力な引き寄せ（坂エリア限定）
         const dist = Math.sqrt(diceBodies[i].position.x**2 + diceBodies[i].position.z**2);
         if(dist > 2.0) {
-            diceBodies[i].applyForce(new CANNON.Vec3(-diceBodies[i].position.x * 12, 0, -diceBodies[i].position.z * 12), diceBodies[i].position);
+            diceBodies[i].applyForce(new CANNON.Vec3(-diceBodies[i].position.x * 10, 0, -diceBodies[i].position.z * 10), diceBodies[i].position);
         }
     });
     particles.forEach(p => { p.rotation.y += 0.0005; });
