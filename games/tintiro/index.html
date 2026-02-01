@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>3D 粋・極チンチロ 究極版</title>
+    <title>3D 粋・極チンチロ 漆黒版</title>
     <style>
         body { margin: 0; background: #050505; overflow: hidden; font-family: "Yu Mincho", serif; }
         #ui { position: absolute; bottom: 40px; width: 100%; text-align: center; z-index: 100; }
@@ -18,7 +18,7 @@
         .impact { animation: yakuIn 0.6s cubic-bezier(0.17, 0.89, 0.32, 1.49) forwards; }
         @keyframes yakuIn { 0% { transform: scale(0.3); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
         .shake { animation: shake 0.4s ease-in-out; }
-        @keyframes shake { 0%, 100% { transform: translate(0,0); } 20% { transform: translate(-10px, 10px); } 40% { transform: translate(10px, -10px); } 60% { transform: translate(-10px, -10px); } 80% { transform: translate(10px, 10px); } }
+        @keyframes shake { 0%, 100% { transform: translate(0,0); } 20% { transform: translate(-5px, 5px); } 40% { transform: translate(5px, -5px); } 60% { transform: translate(-5px, -5px); } 80% { transform: translate(5px, 5px); } }
     </style>
 </head>
 <body>
@@ -43,19 +43,22 @@ function createDiceTexture(num) {
     const ctx = canvas.getContext('2d');
     ctx.fillStyle = '#fdfdfd'; ctx.fillRect(0, 0, 128, 128);
     ctx.fillStyle = (num === 1) ? '#e63946' : '#111';
-    const r = (num === 1) ? 22 : 12;
+    const r = (num === 1) ? 24 : 14;
     const c = 64, l = 30, h = 98;
-    const dots = { 1:[[c,c]], 2:[[l,h],[h,l]], 3:[[l,h],[c,c],[l,h]], 3:[[l,h],[c,c],[h,l]], 4:[[l,l],[l,h],[h,l],[h,h]], 5:[[l,l],[l,h],[c,c],[h,l],[h,h]], 6:[[l,l],[l,64],[l,h],[h,l],[h,64],[h,h]] };
+    const dots = { 1:[[c,c]], 2:[[l,h],[h,l]], 3:[[l,h],[c,c],[h,l]], 4:[[l,l],[l,h],[h,l],[h,h]], 5:[[l,l],[l,h],[c,c],[h,l],[h,h]], 6:[[l,l],[l,64],[l,h],[h,l],[h,64],[h,h]] };
     dots[num].forEach(p => { ctx.beginPath(); ctx.arc(p[0], p[1], r, 0, Math.PI*2); ctx.fill(); });
-    return new THREE.MeshPhongMaterial({ map: new THREE.CanvasTexture(canvas), shininess: 80 });
+    return new THREE.MeshPhongMaterial({ map: new THREE.CanvasTexture(canvas), shininess: 100 });
 }
 
 function init() {
-    // 物理世界：重力と反発を大幅強化
+    // 物理世界：反発を最大化、摩擦を極小化
     world = new CANNON.World();
-    world.gravity.set(0, -50, 0);
+    world.gravity.set(0, -60, 0);
     const mat = new CANNON.Material();
-    world.addContactMaterial(new CANNON.ContactMaterial(mat, mat, { restitution: 0.8, friction: 0.05 }));
+    world.addContactMaterial(new CANNON.ContactMaterial(mat, mat, { 
+        restitution: 0.95, // 超反発
+        friction: 0.001     // ほぼゼロの摩擦
+    }));
 
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera(35, window.innerWidth/window.innerHeight, 0.1, 1000);
@@ -66,23 +69,23 @@ function init() {
     renderer.setClearColor(0x050505); renderer.shadowMap.enabled = true;
     document.body.appendChild(renderer.domElement);
 
-    scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-    const light = new THREE.PointLight(0xffffff, 1.2);
-    light.position.set(0, 20, 10); light.castShadow = true;
+    scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+    const light = new THREE.PointLight(0xffffff, 1.5);
+    light.position.set(5, 20, 10); light.castShadow = true;
     scene.add(light);
 
-    // --- 物理設定：器の構造 ---
-    const floorSize = 2.0; 
-    const bowlRadius = 4.5;
-    const tilt = 0.8; 
+    // --- 物理設定：見えない器 ---
+    const floorSize = 2.2; 
+    const limitRadius = 4.8;
+    const tilt = 0.9; 
     
-    // 底面
+    // 平らな底面（物理）
     const floor = new CANNON.Body({ mass: 0, material: mat });
     floor.addShape(new CANNON.Plane());
     floor.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI/2);
     world.addBody(floor);
 
-    const createWall = (x, z, ry, rx, isInvisible = false) => {
+    const createWall = (x, z, ry, rx) => {
         const b = new CANNON.Body({ mass: 0, material: mat });
         b.addShape(new CANNON.Plane()); b.position.set(x, 0, z);
         const qY = new CANNON.Quaternion(); qY.setFromAxisAngle(new CANNON.Vec3(0,1,0), ry);
@@ -90,57 +93,45 @@ function init() {
         b.quaternion = qY.mult(qX); world.addBody(b);
     };
 
-    // 滑り台（坂）
+    // 坂（滑り台）
     createWall(0, floorSize, 0, -Math.PI/2 + tilt);
     createWall(0, -floorSize, Math.PI, -Math.PI/2 + tilt);
     createWall(floorSize, 0, -Math.PI/2, -Math.PI/2 + tilt);
     createWall(-floorSize, 0, Math.PI/2, -Math.PI/2 + tilt);
 
-    // 見えない垂直壁（場外防止ガード）
-    createWall(0, bowlRadius, 0, -Math.PI);     // 北
-    createWall(0, -bowlRadius, 0, 0);           // 南
-    createWall(bowlRadius, 0, -Math.PI/2, 0);   // 東
-    createWall(-bowlRadius, 0, Math.PI/2, 0);    // 西
+    // 垂直の見えない壁（場外防止）
+    createWall(0, limitRadius, 0, -Math.PI);
+    createWall(0, -limitRadius, 0, 0);
+    createWall(limitRadius, 0, -Math.PI/2, 0);
+    createWall(-limitRadius, 0, Math.PI/2, 0);
 
-    // --- 描画設定：お椀 (透明度と深度テストを調整してサイコロを隠さないように) ---
-    const bowlMat = new THREE.MeshPhongMaterial({ color: 0x4a0000, side: THREE.DoubleSide, transparent: true, opacity: 0.9, depthWrite: true });
-    
-    // 描画用の器
-    const vFloor = new THREE.Mesh(new THREE.PlaneGeometry(floorSize*2, floorSize*2), bowlMat);
-    vFloor.rotation.x = -Math.PI/2; vFloor.receiveShadow = true; scene.add(vFloor);
-
-    const wallGeo = new THREE.PlaneGeometry(bowlRadius * 2.5, 6);
-    const setupVWall = (x, z, ry, rx) => {
-        const m = new THREE.Mesh(wallGeo, bowlMat);
-        m.position.set(x, 2, z); m.rotation.y = ry; m.rotation.x = rx; m.receiveShadow = true;
-        scene.add(m);
-    };
-    setupVWall(0, floorSize, 0, -Math.PI/2 + tilt);
-    setupVWall(0, -floorSize, Math.PI, -Math.PI/2 + tilt);
-    setupVWall(floorSize, 0, -Math.PI/2, -Math.PI/2 + tilt);
-    setupVWall(-floorSize, 0, Math.PI/2, -Math.PI/2 + tilt);
+    // --- 見た目：背景と同色の円（土台っぽく見せる） ---
+    const circleGeo = new THREE.CircleGeometry(limitRadius, 64);
+    const circleMat = new THREE.MeshPhongMaterial({ color: 0x080808, side: THREE.DoubleSide });
+    const circleMesh = new THREE.Mesh(circleGeo, circleMat);
+    circleMesh.rotation.x = -Math.PI/2;
+    circleMesh.position.y = -0.05; // 物理地面よりわずかに下に配置
+    circleMesh.receiveShadow = true;
+    scene.add(circleMesh);
 
     // サイコロ
-    const diceSize = 0.8;
+    const diceSize = 0.85;
     const diceMats = [createDiceTexture(5), createDiceTexture(2), createDiceTexture(6), createDiceTexture(1), createDiceTexture(3), createDiceTexture(4)];
     for (let i = 0; i < 3; i++) {
         const mesh = new THREE.Mesh(new THREE.BoxGeometry(diceSize, diceSize, diceSize), diceMats);
-        mesh.castShadow = true; 
-        mesh.renderOrder = 999; // お椀より後に描画されるように強制
-        scene.add(mesh); 
-        diceArray.push(mesh);
+        mesh.castShadow = true; scene.add(mesh); diceArray.push(mesh);
         
         const body = new CANNON.Body({ mass: 1, material: mat });
         body.addShape(new CANNON.Box(new CANNON.Vec3(diceSize/2, diceSize/2, diceSize/2)));
-        body.position.set(0, 8, 0); world.addBody(body); diceBodies.push(body);
+        body.position.set(0, 10, 0); world.addBody(body); diceBodies.push(body);
     }
     
     // 金粉
     const pGeo = new THREE.BufferGeometry();
-    const pPos = new Float32Array(450);
-    for(let i=0; i<450; i++) pPos[i] = (Math.random()-0.5)*25;
+    const pPos = new Float32Array(600);
+    for(let i=0; i<600; i++) pPos[i] = (Math.random()-0.5)*30;
     pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
-    const pMat = new THREE.PointsMaterial({ color: 0xd4af37, size: 0.06 });
+    const pMat = new THREE.PointsMaterial({ color: 0xd4af37, size: 0.05, transparent: true, opacity: 0.6 });
     const pMesh = new THREE.Points(pGeo, pMat); scene.add(pMesh); particles.push(pMesh);
 
     animate();
@@ -154,16 +145,16 @@ function roll() {
     document.getElementById('rollBtn').disabled = true;
 
     diceBodies.forEach((body, i) => {
-        body.position.set((Math.random()-0.5), 5+i, (Math.random()-0.5));
-        body.velocity.set((Math.random()-0.5)*25, -20, (Math.random()-0.5)*25);
-        body.angularVelocity.set(Math.random()*50, Math.random()*50, Math.random()*50);
+        body.position.set((Math.random()-0.5), 6+i, (Math.random()-0.5));
+        body.velocity.set((Math.random()-0.5)*35, -25, (Math.random()-0.5)*35);
+        body.angularVelocity.set(Math.random()*60, Math.random()*60, Math.random()*60);
     });
-    setTimeout(() => { checkSettled = true; }, 1200);
+    setTimeout(() => { checkSettled = true; }, 1500);
 }
 
 function checkAllSettled() {
     if (!checkSettled) return;
-    const stopped = diceBodies.every(b => b.velocity.length() < 0.03 && b.angularVelocity.length() < 0.03);
+    const stopped = diceBodies.every(b => b.velocity.length() < 0.02 && b.angularVelocity.length() < 0.02);
     if (stopped) { checkSettled = false; judge(); }
 }
 
@@ -209,12 +200,13 @@ function animate() {
     diceArray.forEach((mesh, i) => {
         mesh.position.copy(diceBodies[i].position);
         mesh.quaternion.copy(diceBodies[i].quaternion);
-        // 中心に寄せる補助（坂にいる場合のみ）
-        if(Math.abs(diceBodies[i].position.x) > 1.9 || Math.abs(diceBodies[i].position.z) > 1.9) {
-            diceBodies[i].applyForce(new CANNON.Vec3(-diceBodies[i].position.x * 5, 0, -diceBodies[i].position.z * 5), diceBodies[i].position);
+        // 中心への強力な引き寄せ（坂エリア限定）
+        const dist = Math.sqrt(diceBodies[i].position.x**2 + diceBodies[i].position.z**2);
+        if(dist > 2.0) {
+            diceBodies[i].applyForce(new CANNON.Vec3(-diceBodies[i].position.x * 12, 0, -diceBodies[i].position.z * 12), diceBodies[i].position);
         }
     });
-    particles.forEach(p => { p.rotation.y += 0.001; });
+    particles.forEach(p => { p.rotation.y += 0.0005; });
     renderer.render(scene, camera);
 }
 
