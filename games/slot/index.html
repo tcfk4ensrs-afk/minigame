@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cyber Slot - Extreme Double Up</title>
+    <title>Cyber Slot - Ultra High Tension</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&display=swap" rel="stylesheet">
     <style>
         :root {
             --neon-pink: #ff00ff;
@@ -23,30 +24,28 @@
             height: 100vh;
             margin: 0;
             overflow: hidden;
-            transition: background 0.3s;
         }
 
-        /* 激アツ・勝利演出背景 */
-        .win-bg { animation: rainbow-bg 1s infinite; }
-        @keyframes rainbow-bg {
-            0% { background: #300; } 50% { background: #003; } 100% { background: #300; }
+        /* 派手な背景フラッシュ */
+        @keyframes flash-win {
+            0% { background: var(--dark-bg); }
+            10% { background: #fff; }
+            20% { background: var(--neon-pink); }
+            30% { background: #fff; }
+            40% { background: var(--neon-blue); }
+            100% { background: var(--dark-bg); }
         }
-
-        .shake { animation: shake 0.2s ease-in-out 2; }
-        @keyframes shake {
-            0% { transform: translate(3px, 3px); }
-            50% { transform: translate(-3px, -3px); }
-            100% { transform: translate(0, 0); }
-        }
+        .win-flash { animation: flash-win 0.8s ease-out; }
 
         #game-board {
             border: 4px solid var(--neon-blue);
             padding: 30px;
             background: rgba(0, 0, 0, 0.95);
-            box-shadow: 0 0 40px var(--neon-blue);
+            box-shadow: 0 0 50px var(--neon-blue);
             border-radius: 20px;
             text-align: center;
             position: relative;
+            z-index: 10;
         }
 
         .display-panel {
@@ -73,7 +72,7 @@
             box-shadow: 0 0 15px var(--neon-pink);
         }
 
-        /* リーチ・目押しガイド発光 */
+        /* ガイド発光 */
         .reel-window.glow {
             box-shadow: 0 0 30px #fff, inset 0 0 20px #fff;
             border-color: #fff;
@@ -104,20 +103,30 @@
             cursor: pointer;
             font-weight: bold;
             transition: 0.1s;
-            text-transform: uppercase;
         }
 
         .btn:active { background: var(--neon-blue); color: black; }
         .btn:disabled { opacity: 0.3; cursor: not-allowed; }
 
-        .stop-btn { width: 100px; height: 50px; margin-top: 10px; }
-        .spin-btn { width: 100%; height: 70px; font-size: 1.8rem; border-color: var(--neon-pink); color: var(--neon-pink); box-shadow: 0 0 20px var(--neon-pink); }
+        .stop-btn { width: 100px; height: 50px; margin-top: 10px; font-size: 1rem; }
+        .spin-btn { width: 100%; height: 70px; font-size: 2rem; border-color: var(--neon-pink); color: var(--neon-pink); box-shadow: 0 0 30px var(--neon-pink); }
+
+        /* キャンバス（クラッカー用） */
+        #effect-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 100;
+        }
 
         /* ダブルアップ画面 */
         #double-up-overlay {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.95);
+            background: rgba(0,0,0,0.9);
             display: none;
             flex-direction: column;
             align-items: center;
@@ -126,29 +135,30 @@
             border-radius: 15px;
         }
 
-        .du-title { color: gold; font-size: 2rem; margin-bottom: 10px; animation: pulse 0.5s infinite; }
-        @keyframes pulse { from { transform: scale(1); } to { transform: scale(1.1); } }
+        .du-title { color: #fff; font-size: 2.5rem; text-shadow: 0 0 20px var(--neon-pink); margin-bottom: 10px; }
     </style>
 </head>
 <body>
 
+<canvas id="effect-canvas"></canvas>
+
 <div id="game-board">
     <div class="display-panel">
         <div>CREDIT: <span id="coins" style="color:var(--neon-green)">1000</span></div>
-        <div id="status-msg" style="font-size: 0.8rem;">READY</div>
+        <div id="status-msg">READY</div>
     </div>
     
     <div class="slot-container">
         <div class="reel-box">
-            <div id="win0" class="reel-window"><div id="strip0" class="reel-strip"></div></div>
+            <div id="win-frame0" class="reel-window"><div id="strip0" class="reel-strip"></div></div>
             <button id="stop0" class="btn stop-btn" onclick="stopReel(0)" disabled>STOP</button>
         </div>
         <div class="reel-box">
-            <div id="win1" class="reel-window"><div id="strip1" class="reel-strip"></div></div>
+            <div id="win-frame1" class="reel-window"><div id="strip1" class="reel-strip"></div></div>
             <button id="stop1" class="btn stop-btn" onclick="stopReel(1)" disabled>STOP</button>
         </div>
         <div class="reel-box">
-            <div id="win2" class="reel-window"><div id="strip2" class="reel-strip"></div></div>
+            <div id="win-frame2" class="reel-window"><div id="strip2" class="reel-strip"></div></div>
             <button id="stop2" class="btn stop-btn" onclick="stopReel(2)" disabled>STOP</button>
         </div>
     </div>
@@ -157,12 +167,11 @@
 
     <div id="double-up-overlay">
         <div class="du-title">DOUBLE UP?</div>
-        <div style="margin-bottom: 20px;">Current Win: <span id="current-win-amount">0</span></div>
-        <div class="slot-container" id="du-reels">
-            </div>
-        <div style="display:flex; gap:10px;">
-            <button id="du-start-btn" class="btn" style="padding:10px 20px;" onclick="startDoubleUp()">CHALLENGE</button>
-            <button id="du-collect-btn" class="btn" style="padding:10px 20px; border-color:#888; color:#888;" onclick="collectWin()">COLLECT</button>
+        <div style="font-size: 1.5rem; margin-bottom: 20px;">WIN: <span id="current-win-amount" style="color: gold;">0</span></div>
+        <div class="slot-container" id="du-reels-container"></div>
+        <div style="display:flex; gap:10px; margin-top:20px;">
+            <button id="du-start-btn" class="btn" style="padding:15px 30px; font-size:1.2rem; border-color:var(--neon-green); color:var(--neon-green);" onclick="startDoubleUp()">GO!</button>
+            <button id="du-collect-btn" class="btn" style="padding:15px 30px; font-size:1.2rem; border-color:#888; color:#888;" onclick="collectWin()">COLLECT</button>
         </div>
     </div>
 </div>
@@ -180,7 +189,56 @@
     let isSlowMode = false;
     let isDoubleUpMode = false;
 
-    // 初期化
+    const canvas = document.getElementById('effect-canvas');
+    const ctx = canvas.getContext('2d');
+    let particles = [];
+
+    function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
+    window.onresize = resize;
+    resize();
+
+    // パーティクル（クラッカー）クラス
+    class Particle {
+        constructor() {
+            this.x = canvas.width / 2;
+            this.y = canvas.height / 2;
+            this.size = Math.random() * 10 + 5;
+            this.color = `hsl(${Math.random() * 360}, 100%, 50%)`;
+            this.vx = (Math.random() - 0.5) * 20;
+            this.vy = (Math.random() - 0.8) * 25;
+            this.gravity = 0.5;
+            this.life = 100;
+        }
+        draw() {
+            ctx.fillStyle = this.color;
+            ctx.fillRect(this.x, this.y, this.size, this.size);
+        }
+        update() {
+            this.vx *= 0.99;
+            this.vy += this.gravity;
+            this.x += this.vx;
+            this.y += this.vy;
+            this.life -= 1;
+        }
+    }
+
+    function triggerFirework() {
+        document.body.classList.add('win-flash');
+        setTimeout(() => document.body.classList.remove('win-flash'), 800);
+        for(let i=0; i<150; i++) particles.push(new Particle());
+        animateParticles();
+    }
+
+    function animateParticles() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        particles = particles.filter(p => p.life > 0);
+        particles.forEach(p => { p.update(); p.draw(); });
+        if(particles.length > 0) requestAnimationFrame(animateParticles);
+    }
+
     function initReels(targetPrefix, symbolList) {
         for (let i = 0; i < 3; i++) {
             const strip = document.getElementById(`${targetPrefix}${i}`);
@@ -194,13 +252,10 @@
     function startSpin() {
         if (coins < 100) return;
         coins -= 100;
-        updateUI();
+        document.getElementById('coins').innerText = coins;
+        isSlowMode = Math.random() < 0.25;
+        document.getElementById('status-msg').innerText = isSlowMode ? "!!! CHANCE !!!" : "SPINNING...";
         
-        // 5回に1回程度の確率でスローモード
-        isSlowMode = Math.random() < 0.2;
-        document.getElementById('status-msg').innerText = isSlowMode ? "!! CHANCE !!" : "SPINNING";
-        if(isSlowMode) document.body.classList.add('win-bg');
-
         for (let i = 0; i < 3; i++) {
             reelStates[i] = true;
             document.getElementById(`stop${i}`).disabled = false;
@@ -211,20 +266,19 @@
 
     function animateReel(i, symbolList, idPrefix) {
         const strip = document.getElementById(`${idPrefix}${i}`);
-        const winBox = document.getElementById(`win${i}`);
-        let speed = isSlowMode ? 10 : (25 + i * 5);
+        const frame = document.getElementById(`win-frame${i}`);
+        let speed = isSlowMode ? 10 : (30 + i * 5);
         
         reelIntervals[i] = setInterval(() => {
             reelPositions[i] -= speed;
             if (reelPositions[i] <= -(SYMBOL_HEIGHT * symbolList.length)) reelPositions[i] = 0;
             strip.style.top = reelPositions[i] + 'px';
 
-            // 目押しガイド：7が近い時に光る
-            const currentIndex = Math.floor(Math.abs(reelPositions[i]) / SYMBOL_HEIGHT) % symbolList.length;
-            if (symbolList[currentIndex] === '7️⃣' || symbolList[currentIndex] === '⭕') {
-                winBox.classList.add('glow');
+            const idx = Math.floor(Math.abs(reelPositions[i]) / SYMBOL_HEIGHT) % symbolList.length;
+            if (symbolList[idx] === '7️⃣' || symbolList[idx] === '⭕') {
+                frame.classList.add('glow');
             } else {
-                winBox.classList.remove('glow');
+                frame.classList.remove('glow');
             }
         }, 20);
     }
@@ -232,49 +286,42 @@
     function stopReel(i) {
         clearInterval(reelIntervals[i]);
         reelStates[i] = false;
-        document.getElementById(`stop${i}`).disabled = true;
+        document.getElementById(`${isDoubleUpMode ? 'dustop':'stop'}${i}`).disabled = true;
         
-        // ピタ止め
         const finalPos = Math.round(reelPositions[i] / SYMBOL_HEIGHT) * SYMBOL_HEIGHT;
         document.getElementById(`${isDoubleUpMode ? 'dustrip':'strip'}${i}`).style.top = finalPos + 'px';
         reelPositions[i] = finalPos;
-        document.getElementById(`win${i}`).classList.remove('glow');
 
-        if (reelStates.every(s => s === false)) {
+        if (reelStates.every(s => !s)) {
             isDoubleUpMode ? checkDUResult() : checkMainResult();
         }
     }
 
     function checkMainResult() {
-        document.body.classList.remove('win-bg');
         const res = reelPositions.map(pos => symbols[Math.abs(pos / SYMBOL_HEIGHT) % symbols.length]);
-
         if (res[0] === res[1] && res[1] === res[2]) {
-            const payouts = {'7️⃣': 5000, '💎': 2000, '💰': 1000, '🍒': 500, '💀': 100};
-            currentWin = payouts[res[0]];
-            showDoubleUpOverlay();
+            const pay = {'7️⃣': 5000, '💎': 2000, '💰': 1000, '🍒': 500, '💀': 100};
+            currentWin = pay[res[0]];
+            triggerFirework();
+            setTimeout(showDoubleUpOverlay, 1000);
         } else {
-            document.body.classList.add('shake');
-            setTimeout(() => document.body.classList.remove('shake'), 300);
             document.getElementById('spin-btn').disabled = false;
             document.getElementById('status-msg').innerText = "TRY AGAIN";
         }
     }
 
-    // ダブルアップ関連
     function showDoubleUpOverlay() {
         isDoubleUpMode = true;
-        document.getElementById('double-up-overlay').style.display = 'flex';
+        const overlay = document.getElementById('double-up-overlay');
+        overlay.style.display = 'flex';
         document.getElementById('current-win-amount').innerText = currentWin;
-        document.getElementById('du-reels').innerHTML = [0,1,2].map(i => `
+        document.getElementById('du-reels-container').innerHTML = [0,1,2].map(i => `
             <div class="reel-box">
-                <div id="win${i}" class="reel-window"><div id="dustrip${i}" class="reel-strip"></div></div>
+                <div id="win-frame${i}" class="reel-window"><div id="dustrip${i}" class="reel-strip"></div></div>
                 <button id="dustop${i}" class="btn stop-btn" onclick="stopReel(${i})" disabled>STOP</button>
             </div>
         `).join('');
         initReels('dustrip', duSymbols);
-        document.getElementById('du-start-btn').disabled = false;
-        document.getElementById('du-collect-btn').disabled = false;
     }
 
     function startDoubleUp() {
@@ -291,28 +338,22 @@
         const res = reelPositions.map(pos => duSymbols[Math.abs(pos / SYMBOL_HEIGHT) % duSymbols.length]);
         if (res.every(s => s === '⭕')) {
             currentWin *= 2;
+            triggerFirework();
             document.getElementById('current-win-amount').innerText = currentWin;
             document.getElementById('du-start-btn').disabled = false;
             document.getElementById('du-collect-btn').disabled = false;
-            document.body.classList.add('win-bg');
-            setTimeout(() => document.body.classList.remove('win-bg'), 1000);
         } else {
-            currentWin = 0;
-            alert("LOSE... 0 COINS");
-            collectWin();
+            alert("LOSE! 0 COINS");
+            collectWin(true);
         }
     }
 
-    function collectWin() {
-        coins += currentWin;
+    function collectWin(isLost = false) {
+        if(!isLost) coins += currentWin;
         currentWin = 0;
         isDoubleUpMode = false;
         document.getElementById('double-up-overlay').style.display = 'none';
         document.getElementById('spin-btn').disabled = false;
-        updateUI();
-    }
-
-    function updateUI() {
         document.getElementById('coins').innerText = coins;
     }
 
