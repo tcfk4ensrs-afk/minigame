@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cyber Slot - Fixed & Enhanced</title>
+    <title>Cyber Slot - Ultra Final Fixed</title>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -26,13 +26,11 @@
             overflow: hidden;
         }
 
-        /* 派手な背景フラッシュ */
+        /* 画面フラッシュ */
         @keyframes flash-win {
             0% { background: var(--dark-bg); }
             10% { background: #fff; }
-            20% { background: var(--neon-pink); }
-            30% { background: #fff; }
-            40% { background: var(--neon-blue); }
+            50% { background: var(--neon-pink); }
             100% { background: var(--dark-bg); }
         }
         .win-flash { animation: flash-win 1s ease-out; }
@@ -54,6 +52,7 @@
             font-size: 1.2rem;
             color: var(--neon-blue);
             margin-bottom: 20px;
+            min-width: 330px;
         }
 
         .slot-container {
@@ -120,7 +119,6 @@
             z-index: 100;
         }
 
-        /* ダブルアップ画面 */
         #double-up-overlay {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
@@ -133,7 +131,7 @@
             border-radius: 15px;
         }
 
-        .du-title { color: #fff; font-size: 2.5rem; text-shadow: 0 0 20px var(--neon-pink); margin-bottom: 10px; }
+        .du-title { color: #fff; font-size: 2.2rem; text-shadow: 0 0 20px var(--neon-pink); margin-bottom: 10px; }
     </style>
 </head>
 <body>
@@ -146,18 +144,18 @@
         <div id="status-msg">READY</div>
     </div>
     
-    <div class="slot-container" id="main-slot-ui">
+    <div class="slot-container" id="slot-ui">
         <div class="reel-box">
             <div id="win-frame0" class="reel-window"><div id="strip0" class="reel-strip"></div></div>
-            <button id="stop0" class="btn stop-btn main-stop" onclick="stopReel(0)" disabled>STOP</button>
+            <button id="stop0" class="btn stop-btn" onclick="stopReel(0)" disabled>STOP</button>
         </div>
         <div class="reel-box">
             <div id="win-frame1" class="reel-window"><div id="strip1" class="reel-strip"></div></div>
-            <button id="stop1" class="btn stop-btn main-stop" onclick="stopReel(1)" disabled>STOP</button>
+            <button id="stop1" class="btn stop-btn" onclick="stopReel(1)" disabled>STOP</button>
         </div>
         <div class="reel-box">
             <div id="win-frame2" class="reel-window"><div id="strip2" class="reel-strip"></div></div>
-            <button id="stop2" class="btn stop-btn main-stop" onclick="stopReel(2)" disabled>STOP</button>
+            <button id="stop2" class="btn stop-btn" onclick="stopReel(2)" disabled>STOP</button>
         </div>
     </div>
 
@@ -165,11 +163,11 @@
 
     <div id="double-up-overlay">
         <div class="du-title">DOUBLE UP?</div>
-        <div style="font-size: 1.5rem; margin-bottom: 20px;">WIN: <span id="current-win-amount" style="color: gold;">0</span></div>
+        <div style="font-size: 1.2rem; margin-bottom: 15px;">WIN: <span id="du-win-amount" style="color: gold;">0</span></div>
         <div class="slot-container" id="du-reels-container"></div>
         <div style="display:flex; gap:10px; margin-top:20px;">
-            <button id="du-start-btn" class="btn" style="padding:15px 30px; font-size:1.2rem; border-color:var(--neon-green); color:var(--neon-green);" onclick="startDoubleUp()">CHALLENGE</button>
-            <button id="du-collect-btn" class="btn" style="padding:15px 30px; font-size:1.2rem; border-color:#888; color:#888;" onclick="collectWin()">COLLECT</button>
+            <button id="du-start-btn" class="btn" style="padding:15px 25px; border-color:var(--neon-green); color:var(--neon-green);" onclick="startDoubleUp()">CHALLENGE</button>
+            <button id="du-collect-btn" class="btn" style="padding:15px 25px; border-color:#888; color:#888;" onclick="collectWin()">COLLECT</button>
         </div>
     </div>
 </div>
@@ -186,10 +184,10 @@
     let reelIntervals = [null, null, null];
     let isSlowMode = false;
     let isDoubleUpMode = false;
+    let particles = [];
 
     const canvas = document.getElementById('effect-canvas');
     const ctx = canvas.getContext('2d');
-    let particles = [];
 
     function resize() {
         canvas.width = window.innerWidth;
@@ -207,26 +205,25 @@
             this.vx = (Math.random() - 0.5) * 30;
             this.vy = (Math.random() - 0.8) * 35;
             this.gravity = 0.6;
-            this.life = 120;
+            this.life = 100;
+        }
+        update() {
+            this.vx *= 0.98; this.vy += this.gravity;
+            this.x += this.vx; this.y += this.vy;
+            this.life--;
         }
         draw() {
             ctx.fillStyle = this.color;
             ctx.fillRect(this.x, this.y, this.size, this.size);
         }
-        update() {
-            this.vx *= 0.98;
-            this.vy += this.gravity;
-            this.x += this.vx;
-            this.y += this.vy;
-            this.life -= 1;
-        }
     }
 
     function triggerWinEffect() {
+        document.body.classList.remove('win-flash');
+        void document.body.offsetWidth; // 強制再描画
         document.body.classList.add('win-flash');
-        setTimeout(() => document.body.classList.remove('win-flash'), 1000);
-        for(let i=0; i<200; i++) particles.push(new Particle());
-        requestAnimationFrame(animateParticles);
+        for(let i=0; i<150; i++) particles.push(new Particle());
+        animateParticles();
     }
 
     function animateParticles() {
@@ -243,24 +240,25 @@
             const content = [...symbolList, ...symbolList, ...symbolList, ...symbolList]
                 .map(s => `<div class="symbol">${s}</div>`).join('');
             strip.innerHTML = content;
-            reelPositions[i] = 0; // 位置リセット
+            reelPositions[i] = 0;
             strip.style.top = '0px';
         }
     }
 
     function startSpin() {
-        if (coins < 100) return;
+        if (coins < 100 || reelStates.some(s => s)) return;
+        
         coins -= 100;
         document.getElementById('coins').innerText = coins;
         isSlowMode = Math.random() < 0.25;
-        document.getElementById('status-msg').innerText = isSlowMode ? "!!! CHANCE !!!" : "SPINNING...";
-        
+        document.getElementById('status-msg').innerText = isSlowMode ? "!! CHANCE !!" : "SPINNING...";
+        document.getElementById('spin-btn').disabled = true;
+
         for (let i = 0; i < 3; i++) {
             reelStates[i] = true;
             document.getElementById(`stop${i}`).disabled = false;
             animateReel(i, symbols, 'strip');
         }
-        document.getElementById('spin-btn').disabled = true;
     }
 
     function animateReel(i, symbolList, idPrefix) {
@@ -268,7 +266,7 @@
         const frame = document.getElementById(`win-frame${i}`);
         let speed = isSlowMode ? 10 : (30 + i * 5);
         
-        clearInterval(reelIntervals[i]); // 既存のインターバルをクリア
+        clearInterval(reelIntervals[i]);
         reelIntervals[i] = setInterval(() => {
             reelPositions[i] -= speed;
             if (reelPositions[i] <= -(SYMBOL_HEIGHT * symbolList.length)) reelPositions[i] = 0;
@@ -287,21 +285,17 @@
         clearInterval(reelIntervals[i]);
         reelStates[i] = false;
         
-        // 適切なSTOPボタンを無効化
-        const btnId = isDoubleUpMode ? `dustop${i}` : `stop${i}`;
-        const btn = document.getElementById(btnId);
+        const btn = document.getElementById(isDoubleUpMode ? `dustop${i}` : `stop${i}`);
         if(btn) btn.disabled = true;
         
-        const stripId = isDoubleUpMode ? `dustrip${i}` : `strip${i}`;
         const finalPos = Math.round(reelPositions[i] / SYMBOL_HEIGHT) * SYMBOL_HEIGHT;
+        const stripId = isDoubleUpMode ? `dustrip${i}` : `strip${i}`;
         document.getElementById(stripId).style.top = finalPos + 'px';
         reelPositions[i] = finalPos;
         document.getElementById(`win-frame${i}`).classList.remove('glow');
 
         if (reelStates.every(s => !s)) {
-            setTimeout(() => {
-                isDoubleUpMode ? checkDUResult() : checkMainResult();
-            }, 200);
+            setTimeout(isDoubleUpMode ? checkDUResult : checkMainResult, 200);
         }
     }
 
@@ -320,15 +314,14 @@
 
     function showDoubleUpOverlay() {
         isDoubleUpMode = true;
-        reelStates = [false, false, false]; // 状態を初期化
-        const overlay = document.getElementById('double-up-overlay');
-        overlay.style.display = 'flex';
-        document.getElementById('current-win-amount').innerText = currentWin;
+        reelStates = [false, false, false];
+        document.getElementById('du-win-amount').innerText = currentWin;
+        document.getElementById('double-up-overlay').style.display = 'flex';
         
         document.getElementById('du-reels-container').innerHTML = [0,1,2].map(i => `
             <div class="reel-box">
                 <div id="win-frame${i}" class="reel-window"><div id="dustrip${i}" class="reel-strip"></div></div>
-                <button id="dustop${i}" class="btn stop-btn du-stop" onclick="stopReel(${i})" disabled>STOP</button>
+                <button id="dustop${i}" class="btn stop-btn" onclick="stopReel(${i})" disabled>STOP</button>
             </div>
         `).join('');
         
@@ -352,26 +345,36 @@
         if (res.every(s => s === '⭕')) {
             currentWin *= 2;
             triggerWinEffect();
-            document.getElementById('current-win-amount').innerText = currentWin;
+            document.getElementById('du-win-amount').innerText = currentWin;
             document.getElementById('du-start-btn').disabled = false;
             document.getElementById('du-collect-btn').disabled = false;
         } else {
-            alert("LOSE! CREDIT: 0");
+            alert("LOSE! CREDIT 0");
             collectWin(true);
         }
     }
 
     function collectWin(isLost = false) {
         if(!isLost) coins += currentWin;
+        
+        // 全ての状態をリセット
         currentWin = 0;
         isDoubleUpMode = false;
+        isSlowMode = false;
+        reelStates = [false, false, false];
+        
+        // インターバルを全て掃除
+        reelIntervals.forEach(inv => clearInterval(inv));
+        
         document.getElementById('double-up-overlay').style.display = 'none';
         document.getElementById('spin-btn').disabled = false;
         document.getElementById('coins').innerText = coins;
         document.getElementById('status-msg').innerText = "READY";
         
-        // メインリールの位置をリセット
+        // メインリールの見た目だけ初期位置に戻す
         initReels('strip', symbols);
+        // メインのSTOPボタンを確実に無効化
+        for(let i=0; i<3; i++) document.getElementById(`stop${i}`).disabled = true;
     }
 
     initReels('strip', symbols);
